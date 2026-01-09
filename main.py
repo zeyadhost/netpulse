@@ -11,24 +11,30 @@ def main():
         print(f"{i}: {iface.name} - {iface.description}")
     
     print("\nStarting NetPulse on ALL interfaces...")
+    print("Open a webpage or use the internet to see packets...")
     print("Press Ctrl+C to stop\n")
     
     capture = PacketCapture()
     visualizer = Visualizer()
     
     capture.start()
+    time.sleep(1)
     
     try:
         with Live(visualizer.generate_display(), refresh_per_second=10) as live:
+            last_count = 0
             while True:
                 packets = capture.get_packets()
                 for packet in packets:
                     visualizer.add_packet(packet)
                 
+                if capture.packet_count != last_count:
+                    last_count = capture.packet_count
+                
                 live.update(visualizer.generate_display())
                 time.sleep(0.1)
     except KeyboardInterrupt:
-        print("\nStopping NetPulse...")
+        print(f"\nStopping NetPulse... (Captured {capture.packet_count} packets)")
         capture.stop()
         
 if __name__ == "__main__":

@@ -29,13 +29,13 @@ class Visualizer:
         display_height = min(height - 5, self.max_pulse_height)
         
         if not self.pulse_data:
-            return Panel("Waiting for packets...", title="NetPulse")
+            return Panel("Listening for packets... (Open a webpage to generate traffic)", title="NetPulse", subtitle="Packets: 0")
             
         recent_packets = list(self.pulse_data)[-width//2:]
         
         bars = []
         for packet in recent_packets:
-            bar_height = min(int((packet['size'] / 1500) * display_height), display_height)
+            bar_height = max(1, min(int((packet['size'] / 1500) * display_height), display_height))
             bar = "█" * bar_height
             bars.append(bar)
             
@@ -44,6 +44,6 @@ class Visualizer:
             for i in range(display_height)
         ][::-1])
         
-        stats = f"Packets: {len(self.pulse_data)} | Active"
+        stats = f"Packets: {len(self.pulse_data)} | Total Size: {sum(p['size'] for p in recent_packets)} bytes"
         
         return Panel(visual, title="NetPulse", subtitle=stats)
