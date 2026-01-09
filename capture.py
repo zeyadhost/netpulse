@@ -1,4 +1,4 @@
-from scapy.all import sniff, IP, TCP, UDP
+from scapy.all import sniff, IP, TCP, UDP, conf, get_if_list
 from queue import Queue
 import threading
 
@@ -7,21 +7,22 @@ class PacketCapture:
         self.packet_queue = Queue()
         self.running = False
         self.capture_thread = None
+        self.interface = None
         
     def packet_handler(self, packet):
+        packet_size = len(packet)
+        protocol = "OTHER"
+        
         if IP in packet:
-            packet_size = len(packet)
-            protocol = "OTHER"
-            
             if TCP in packet:
                 protocol = "TCP"
             elif UDP in packet:
                 protocol = "UDP"
-                
-            self.packet_queue.put({
-                'size': packet_size,
-                'protocol': protocol
-            })
+            
+        self.packet_queue.put({
+            'size': packet_size,
+            'protocol': protocol
+        })
     
     def start(self):
         self.running = True
@@ -29,7 +30,10 @@ class PacketCapture:
         self.capture_thread.start()
         
     def _capture_loop(self):
-        sniff(prn=self.packet_handler, store=False, stop_filter=lambda x: not self.running)
+        try:
+            sniff(prn=self.packet_handler, store=False, stop_filter=lambda x: not self.running, iface=self.interface)
+        except Exception as e:
+            print(f"Capture error: {e}")
         
     def stop(self):
         self.running = False

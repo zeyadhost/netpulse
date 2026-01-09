@@ -1,6 +1,7 @@
 from capture import PacketCapture
 from visualizer import Visualizer
 from rich.live import Live
+from scapy.all import conf
 import time
 
 def main():
@@ -8,7 +9,8 @@ def main():
     visualizer = Visualizer()
     
     print("Starting NetPulse...")
-    print("Press Ctrl+C to stop")
+    print(f"Capturing on interface: {conf.iface}")
+    print("Press Ctrl+C to stop\n")
     
     capture.start()
     
