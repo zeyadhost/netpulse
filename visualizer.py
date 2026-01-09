@@ -57,8 +57,8 @@ class Visualizer:
         width, height = self.get_terminal_size()
         
         usable_width = width - 4
-        stats_height = 5
-        display_height = height - stats_height - 6
+        stats_height = 4
+        display_height = height - stats_height - 4
         
         if not self.pulse_data:
             graph = Panel("Listening for packets...", title="NetPulse")
