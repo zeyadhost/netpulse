@@ -1,10 +1,14 @@
 from capture import PacketCapture
 from visualizer import Visualizer
 from rich.live import Live
+from rich.console import Console
 from scapy.all import get_working_ifaces
 import time
+import os
 
 def main():
+    console = Console()
+    
     print("Available network interfaces:")
     ifaces = get_working_ifaces()
     for i, iface in enumerate(ifaces):
@@ -29,9 +33,16 @@ def main():
     capture.start()
     time.sleep(0.5)
     
+    last_size = os.get_terminal_size()
+    
     try:
-        with Live(visualizer.generate_display(), refresh_per_second=10) as live:
+        with Live(visualizer.generate_display(), refresh_per_second=10, console=console) as live:
             while True:
+                current_size = os.get_terminal_size()
+                if current_size != last_size:
+                    console.clear()
+                    last_size = current_size
+                
                 packets = capture.get_packets()
                 for packet in packets:
                     visualizer.add_packet(packet)
