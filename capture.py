@@ -1,13 +1,12 @@
-from scapy.all import sniff, IP, TCP, UDP, ARP, conf, get_if_list
+from scapy.all import AsyncSniffer, IP, TCP, UDP, ARP, Ether
 from queue import Queue
-import threading
 
 class PacketCapture:
-    def __init__(self):
+    def __init__(self, iface=None):
         self.packet_queue = Queue()
-        self.running = False
-        self.capture_thread = None
+        self.sniffer = None
         self.packet_count = 0
+        self.iface = iface
         
     def packet_handler(self, packet):
         self.packet_count += 1
@@ -28,17 +27,18 @@ class PacketCapture:
         })
     
     def start(self):
-        self.running = True
-        self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
-        self.capture_thread.start()
+        self.sniffer = AsyncSniffer(prn=self.packet_handler, store=False, iface=self.iface)
+        self.sniffer.start()
         
-    def _capture_loop(self):
-        try:
-            sniff(prn=self.packet_handler, store=False, stop_filter=lambda x: not self.running, count=0)
-        except Exception as e:
-            print(f"\nCapture error: {e}")
-            import traceback
-            traceback.print_exc()
+    def stop(self):
+        if self.sniffer:
+            self.sniffer.stop()
+            
+    def get_packets(self):
+        packets = []
+        while not self.packet_queue.empty():
+            packets.append(self.packet_queue.get())
+        return packets
         
     def stop(self):
         self.running = False

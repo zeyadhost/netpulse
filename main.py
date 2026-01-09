@@ -1,7 +1,7 @@
 from capture import PacketCapture
 from visualizer import Visualizer
 from rich.live import Live
-from scapy.all import conf, get_if_list, get_working_ifaces
+from scapy.all import get_working_ifaces
 import time
 
 def main():
@@ -10,26 +10,31 @@ def main():
     for i, iface in enumerate(ifaces):
         print(f"{i}: {iface.name} - {iface.description}")
     
-    print("\nStarting NetPulse on ALL interfaces...")
-    print("Open a webpage or use the internet to see packets...")
+    choice = input("\nEnter interface number to capture (or press Enter for all): ").strip()
+    
+    selected_iface = None
+    if choice.isdigit():
+        idx = int(choice)
+        if 0 <= idx < len(ifaces):
+            selected_iface = ifaces[idx].name
+            print(f"\nCapturing on: {selected_iface}")
+        else:
+            print("Invalid choice, capturing on all interfaces")
+    
     print("Press Ctrl+C to stop\n")
     
-    capture = PacketCapture()
+    capture = PacketCapture(iface=selected_iface)
     visualizer = Visualizer()
     
     capture.start()
-    time.sleep(1)
+    time.sleep(0.5)
     
     try:
         with Live(visualizer.generate_display(), refresh_per_second=10) as live:
-            last_count = 0
             while True:
                 packets = capture.get_packets()
                 for packet in packets:
                     visualizer.add_packet(packet)
-                
-                if capture.packet_count != last_count:
-                    last_count = capture.packet_count
                 
                 live.update(visualizer.generate_display())
                 time.sleep(0.1)
