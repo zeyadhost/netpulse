@@ -1,16 +1,20 @@
 from capture import PacketCapture
 from visualizer import Visualizer
 from rich.live import Live
-from scapy.all import conf
+from scapy.all import conf, get_if_list, get_working_ifaces
 import time
 
 def main():
+    print("Available network interfaces:")
+    ifaces = get_working_ifaces()
+    for i, iface in enumerate(ifaces):
+        print(f"{i}: {iface.name} - {iface.description}")
+    
+    print("\nStarting NetPulse on ALL interfaces...")
+    print("Press Ctrl+C to stop\n")
+    
     capture = PacketCapture()
     visualizer = Visualizer()
-    
-    print("Starting NetPulse...")
-    print(f"Capturing on interface: {conf.iface}")
-    print("Press Ctrl+C to stop\n")
     
     capture.start()
     

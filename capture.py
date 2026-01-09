@@ -31,7 +31,7 @@ class PacketCapture:
         
     def _capture_loop(self):
         try:
-            sniff(prn=self.packet_handler, store=False, stop_filter=lambda x: not self.running, iface=self.interface)
+            sniff(prn=self.packet_handler, store=False, stop_filter=lambda x: not self.running)
         except Exception as e:
             print(f"Capture error: {e}")
         
