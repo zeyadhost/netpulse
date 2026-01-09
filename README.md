@@ -36,4 +36,4 @@ Press Ctrl+C to stop.
 
 - [ ] Protocol identification (HTTP/Green, UDP/Blue, Encrypted/Red)
 - [ ] Color-coded pulses based on traffic type
-- [ ] Interface selection
+- [x] Interface selection
