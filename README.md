@@ -34,6 +34,6 @@ Press Ctrl+C to stop.
 
 ## TODO
 
-- Protocol identification (HTTP/Green, UDP/Blue, Encrypted/Red)
-- Color-coded pulses based on traffic type
-- Interface selection
+- [ ] Protocol identification (HTTP/Green, UDP/Blue, Encrypted/Red)
+- [ ] Color-coded pulses based on traffic type
+- [ ] Interface selection
