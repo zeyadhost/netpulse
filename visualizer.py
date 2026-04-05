@@ -2,16 +2,13 @@ import os
 import time
 from collections import deque
 
-from rich.columns import Columns
-from rich.console import Console, Group
+from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 
 class Visualizer:
     def __init__(self):
-        self.console = Console()
         self.pulse_data = deque(maxlen=500)
         self.total_bytes = 0
         self.tcp_count = 0
@@ -23,6 +20,7 @@ class Visualizer:
         self.start_time = time.time()
         self.peak_pps = 0
         self.peak_size = 0
+        self.paused = False
 
     def get_terminal_size(self):
         size = os.get_terminal_size()
@@ -53,26 +51,38 @@ class Visualizer:
             self.other_count += 1
             self.other_bytes += packet["size"]
 
+    def set_paused(self, paused):
+        self.paused = paused
+
+    def reset_statistics(self):
+        self.pulse_data.clear()
+        self.total_bytes = 0
+        self.tcp_count = 0
+        self.udp_count = 0
+        self.other_count = 0
+        self.tcp_bytes = 0
+        self.udp_bytes = 0
+        self.other_bytes = 0
+        self.start_time = time.time()
+        self.peak_pps = 0
+        self.peak_size = 0
+
+    def clear_live_statistics(self):
+        self.pulse_data.clear()
+
     def generate_display(self):
         width, height = self.get_terminal_size()
 
-        usable_width = width - 4
+        usable_width = max(width - 4, 1)
         stats_height = 4
-        display_height = height - stats_height - 4
-
-        if not self.pulse_data:
-            graph = Panel("Listening for packets...", title="NetPulse")
-            stats = Panel("Waiting for data...", title="Statistics")
-            return Group(graph, stats)
+        display_height = max(height - stats_height - 4, 1)
 
         recent_packets = list(self.pulse_data)[-usable_width:]
 
         while len(recent_packets) < usable_width:
             recent_packets.insert(0, {"size": 0, "protocol": "OTHER", "time": 0})
 
-        max_size = (
-            max(p["size"] for p in recent_packets) if recent_packets else 1500
-        )
+        max_size = max((p["size"] for p in recent_packets), default=1500)
         max_size = max(max_size, 100)
 
         lines = []
@@ -88,13 +98,14 @@ class Visualizer:
 
         visual = "\n".join(lines)
 
-        elapsed = time.time() - self.start_time
+        now = time.time()
+        elapsed = now - self.start_time
         total_packets = self.tcp_count + self.udp_count + self.other_count
         pps = total_packets / elapsed if elapsed > 0 else 0
         if pps > self.peak_pps:
             self.peak_pps = pps
 
-        recent_1s = [p for p in self.pulse_data if time.time() - p["time"] < 1]
+        recent_1s = [p for p in self.pulse_data if now - p["time"] < 1]
         current_pps = len(recent_1s)
         current_bps = sum(p["size"] for p in recent_1s)
 
@@ -103,7 +114,12 @@ class Visualizer:
         seconds = int(elapsed % 60)
         uptime = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-        graph = Panel(visual, title="NetPulse", subtitle=f"Max: {max_size} bytes")
+        state = "[yellow]Paused[/]" if self.paused else "[green]Running[/]"
+        graph = Panel(
+            visual,
+            title="NetPulse",
+            subtitle=f"{state} | Max: {max_size} bytes | P pause/resume | R reset | C clear",
+        )
 
         stats_table = Table.grid(padding=(0, 3))
         stats_table.add_column(justify="left")
@@ -127,6 +143,3 @@ class Visualizer:
         stats_panel = Panel(stats_table, title="Statistics")
 
         return Group(graph, stats_panel)
-```
-
-Now let me initialize git and push to the repository:

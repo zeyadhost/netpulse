@@ -1,4 +1,4 @@
-from queue import Queue
+from queue import Empty, Queue
 
 from scapy.all import ARP, IP, TCP, UDP, AsyncSniffer, Ether
 
@@ -9,8 +9,12 @@ class PacketCapture:
         self.sniffer = None
         self.packet_count = 0
         self.iface = iface
+        self.paused = False
 
     def packet_handler(self, packet):
+        if self.paused:
+            return
+
         self.packet_count += 1
         packet_size = len(packet)
         protocol = "OTHER"
@@ -34,6 +38,23 @@ class PacketCapture:
     def stop(self):
         if self.sniffer:
             self.sniffer.stop()
+
+    def pause(self):
+        self.paused = True
+        self.clear_queue()
+
+    def resume(self):
+        self.paused = False
+
+    def reset_count(self):
+        self.packet_count = 0
+
+    def clear_queue(self):
+        while True:
+            try:
+                self.packet_queue.get_nowait()
+            except Empty:
+                break
 
     def get_packets(self):
         packets = []
