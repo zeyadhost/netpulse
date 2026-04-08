@@ -30,7 +30,13 @@ Run as Administrator:
 python main.py
 ```
 
-Press Ctrl+C to stop.
+Controls while running:
+
+- P: pause/resume packet processing
+- R: reset statistics counters and graph history
+- C: clear live graph history only
+- Q: quit cleanly
+- Ctrl+C: force stop
 
 ## TODO
 

@@ -118,7 +118,7 @@ class Visualizer:
         graph = Panel(
             visual,
             title="NetPulse",
-            subtitle=f"{state} | Max: {max_size} bytes | P pause/resume | R reset | C clear",
+            subtitle=f"{state} | Max: {max_size} bytes | P pause/resume | R reset | C clear | Q quit",
         )
 
         stats_table = Table.grid(padding=(0, 3))

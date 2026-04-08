@@ -1,4 +1,5 @@
 import ctypes
+import msvcrt
 import os
 import sys
 import time
@@ -36,6 +37,37 @@ def request_admin_privileges():
             sys.exit(1)
 
 
+def handle_keyboard_input(capture, visualizer):
+    while msvcrt.kbhit():
+        key = msvcrt.getwch()
+
+        # Ignore multi-byte escape prefixes from special keys.
+        if key in ("\x00", "\xe0"):
+            msvcrt.getwch()
+            continue
+
+        key = key.lower()
+
+        if key == "p":
+            if capture.paused:
+                capture.resume()
+                visualizer.set_paused(False)
+            else:
+                capture.pause()
+                visualizer.set_paused(True)
+        elif key == "r":
+            capture.reset_count()
+            capture.clear_queue()
+            visualizer.reset_statistics()
+        elif key == "c":
+            capture.clear_queue()
+            visualizer.clear_live_statistics()
+        elif key == "q":
+            return True
+
+    return False
+
+
 def main():
     console = Console()
 
@@ -57,7 +89,7 @@ def main():
         else:
             print("Invalid choice, capturing on all interfaces")
 
-    print("Press Ctrl+C to stop\n")
+    print("Controls: P pause/resume | R reset | C clear | Q quit | Ctrl+C stop\n")
 
     capture = PacketCapture(iface=selected_iface)
     visualizer = Visualizer()
@@ -72,6 +104,9 @@ def main():
             visualizer.generate_display(), refresh_per_second=10, console=console
         ) as live:
             while True:
+                if handle_keyboard_input(capture, visualizer):
+                    break
+
                 current_size = os.get_terminal_size()
                 if current_size != last_size:
                     console.clear()
@@ -84,8 +119,10 @@ def main():
                 live.update(visualizer.generate_display())
                 time.sleep(0.1)
     except KeyboardInterrupt:
-        print(f"\nStopping NetPulse... (Captured {capture.packet_count} packets)")
+        pass
+    finally:
         capture.stop()
+        print(f"\nStopping NetPulse... (Captured {capture.packet_count} packets)")
 
 
 if __name__ == "__main__":
