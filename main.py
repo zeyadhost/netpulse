@@ -89,9 +89,18 @@ def main():
         else:
             print("Invalid choice, capturing on all interfaces")
 
+    capture_filter = input(
+        "Enter a BPF capture filter (or press Enter for none): "
+    ).strip()
+
+    if capture_filter:
+        print(f"Using filter: {capture_filter}")
+
     print("Controls: P pause/resume | R reset | C clear | Q quit | Ctrl+C stop\n")
 
-    capture = PacketCapture(iface=selected_iface)
+    capture = PacketCapture(
+        iface=selected_iface, capture_filter=capture_filter or None
+    )
     visualizer = Visualizer()
 
     capture.start()

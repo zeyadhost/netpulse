@@ -30,6 +30,14 @@ Run as Administrator:
 python main.py
 ```
 
+You can optionally provide a BPF capture filter when prompted, for example:
+
+```bash
+tcp port 443
+udp port 53
+host 8.8.8.8
+```
+
 Controls while running:
 
 - P: pause/resume packet processing

@@ -92,6 +92,16 @@ class Visualizer:
             for service, count in self.service_counts.most_common(limit)
         )
 
+    def _top_talkers_summary(self, limit=None):
+        if not self.host_bytes:
+            return "None"
+
+        summary_limit = limit or self.TOP_TALKERS_LIMIT
+        return " | ".join(
+            f"{host} {self.format_bytes(total_bytes)}"
+            for host, total_bytes in self.host_bytes.most_common(summary_limit)
+        )
+
     def add_packet(self, packet):
         packet_time = packet.get("time", time.time())
         packet_entry = {
@@ -183,8 +193,8 @@ class Visualizer:
         now = time.time()
         self._prune_old_packets(now)
 
-        stats_height = 5
-        display_height = max(height - stats_height - 4, 1)
+        lower_panels_height = 8
+        display_height = max(height - lower_panels_height - 4, 1)
 
         bins = self._build_traffic_bins(width, now)
         visual, max_bin_value = self._render_graph(bins, display_height)
@@ -201,5 +211,13 @@ class Visualizer:
         )
 
         stats_panel = Panel(self._build_stats_table(now), title="Statistics")
+        insights_table = Table.grid(expand=True, padding=(0, 2))
+        insights_table.add_column(justify="left")
+        insights_table.add_column(justify="left")
+        insights_table.add_row(
+            f"[bold]Top Talkers:[/] {self._top_talkers_summary()}",
+            f"[bold]Top Services:[/] {self._top_services_summary(limit=5)}",
+        )
+        insights_panel = Panel(insights_table, title="Insights")
 
-        return Group(graph, stats_panel)
+        return Group(graph, stats_panel, insights_panel)
