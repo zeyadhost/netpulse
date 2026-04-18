@@ -1,6 +1,6 @@
 import os
 import time
-from collections import deque
+from collections import Counter, deque
 
 from rich.console import Group
 from rich.panel import Panel
@@ -8,17 +8,21 @@ from rich.table import Table
 
 
 class Visualizer:
+    GRAPH_WINDOW_SECONDS = 30
+    RATE_WINDOW_SECONDS = 1
+    TOP_TALKERS_LIMIT = 5
+
     def __init__(self):
-        self.pulse_data = deque(maxlen=500)
+        self.recent_packets = deque()
         self.total_bytes = 0
-        self.tcp_count = 0
-        self.udp_count = 0
-        self.other_count = 0
-        self.tcp_bytes = 0
-        self.udp_bytes = 0
-        self.other_bytes = 0
+        self.protocol_counts = Counter()
+        self.protocol_bytes = Counter()
+        self.host_counts = Counter()
+        self.host_bytes = Counter()
+        self.service_counts = Counter()
         self.start_time = time.time()
         self.peak_pps = 0
+        self.peak_bps = 0
         self.peak_size = 0
         self.paused = False
 
@@ -29,99 +33,115 @@ class Visualizer:
     def format_bytes(self, bytes_val):
         if bytes_val >= 1048576:
             return f"{bytes_val / 1048576:.2f} MB"
-        elif bytes_val >= 1024:
+        if bytes_val >= 1024:
             return f"{bytes_val / 1024:.2f} KB"
-        else:
-            return f"{bytes_val} B"
+        return f"{bytes_val} B"
+
+    def _prune_old_packets(self, now):
+        cutoff = now - self.GRAPH_WINDOW_SECONDS
+        while self.recent_packets and self.recent_packets[0]["time"] < cutoff:
+            self.recent_packets.popleft()
+
+    def _build_traffic_bins(self, width, now):
+        usable_width = max(width - 4, 1)
+        bin_width = self.GRAPH_WINDOW_SECONDS / usable_width
+        window_start = now - self.GRAPH_WINDOW_SECONDS
+        bins = [0] * usable_width
+
+        for packet in self.recent_packets:
+            if packet["time"] < window_start:
+                continue
+
+            bin_index = int((packet["time"] - window_start) / bin_width)
+            if bin_index >= usable_width:
+                bin_index = usable_width - 1
+            bins[bin_index] += packet["size"]
+
+        return bins
+
+    def _render_graph(self, bins, display_height):
+        max_bin_value = max(max(bins, default=0), 1)
+        lines = []
+
+        for row in range(display_height, 0, -1):
+            threshold = (row / display_height) * max_bin_value
+            line = "".join("#" if value >= threshold else " " for value in bins)
+            lines.append(line)
+
+        return "\n".join(lines), max_bin_value
+
+    def _current_rate_snapshot(self, now):
+        cutoff = now - self.RATE_WINDOW_SECONDS
+        recent_1s = [packet for packet in self.recent_packets if packet["time"] >= cutoff]
+        current_pps = len(recent_1s)
+        current_bps = sum(packet["size"] for packet in recent_1s)
+        return current_pps, current_bps
+
+    def _format_count_bytes(self, protocol):
+        return (
+            f"{self.protocol_counts[protocol]} "
+            f"({self.format_bytes(self.protocol_bytes[protocol])})"
+        )
 
     def add_packet(self, packet):
-        self.pulse_data.append(
-            {"size": packet["size"], "protocol": packet["protocol"], "time": time.time()}
-        )
+        packet_time = packet.get("time", time.time())
+        packet_entry = {
+            "time": packet_time,
+            "size": packet["size"],
+            "protocol": packet["protocol"],
+        }
+        self.recent_packets.append(packet_entry)
+        self._prune_old_packets(packet_time)
+
         self.total_bytes += packet["size"]
-        if packet["size"] > self.peak_size:
-            self.peak_size = packet["size"]
-        if packet["protocol"] == "TCP":
-            self.tcp_count += 1
-            self.tcp_bytes += packet["size"]
-        elif packet["protocol"] == "UDP":
-            self.udp_count += 1
-            self.udp_bytes += packet["size"]
-        else:
-            self.other_count += 1
-            self.other_bytes += packet["size"]
+        self.peak_size = max(self.peak_size, packet["size"])
+
+        protocol = packet["protocol"]
+        self.protocol_counts[protocol] += 1
+        self.protocol_bytes[protocol] += packet["size"]
+
+        host = packet.get("endpoint")
+        if host:
+            self.host_counts[host] += 1
+            self.host_bytes[host] += packet["size"]
+
+        service = packet.get("service")
+        if service:
+            self.service_counts[service] += 1
 
     def set_paused(self, paused):
         self.paused = paused
 
     def reset_statistics(self):
-        self.pulse_data.clear()
+        self.recent_packets.clear()
         self.total_bytes = 0
-        self.tcp_count = 0
-        self.udp_count = 0
-        self.other_count = 0
-        self.tcp_bytes = 0
-        self.udp_bytes = 0
-        self.other_bytes = 0
+        self.protocol_counts.clear()
+        self.protocol_bytes.clear()
+        self.host_counts.clear()
+        self.host_bytes.clear()
+        self.service_counts.clear()
         self.start_time = time.time()
         self.peak_pps = 0
+        self.peak_bps = 0
         self.peak_size = 0
 
     def clear_live_statistics(self):
-        self.pulse_data.clear()
+        self.recent_packets.clear()
 
-    def generate_display(self):
-        width, height = self.get_terminal_size()
+    def _build_stats_table(self, now):
+        elapsed = max(now - self.start_time, 0)
+        total_packets = sum(self.protocol_counts.values())
 
-        usable_width = max(width - 4, 1)
-        stats_height = 4
-        display_height = max(height - stats_height - 4, 1)
-
-        recent_packets = list(self.pulse_data)[-usable_width:]
-
-        while len(recent_packets) < usable_width:
-            recent_packets.insert(0, {"size": 0, "protocol": "OTHER", "time": 0})
-
-        max_size = max((p["size"] for p in recent_packets), default=1500)
-        max_size = max(max_size, 100)
-
-        lines = []
-        for row in range(display_height, 0, -1):
-            threshold = (row / display_height) * max_size
-            line = ""
-            for packet in recent_packets:
-                if packet["size"] >= threshold:
-                    line += "█"
-                else:
-                    line += " "
-            lines.append(line)
-
-        visual = "\n".join(lines)
-
-        now = time.time()
-        elapsed = now - self.start_time
-        total_packets = self.tcp_count + self.udp_count + self.other_count
-        pps = total_packets / elapsed if elapsed > 0 else 0
-        if pps > self.peak_pps:
-            self.peak_pps = pps
-
-        recent_1s = [p for p in self.pulse_data if now - p["time"] < 1]
-        current_pps = len(recent_1s)
-        current_bps = sum(p["size"] for p in recent_1s)
+        current_pps, current_bps = self._current_rate_snapshot(now)
+        self.peak_pps = max(self.peak_pps, current_pps)
+        self.peak_bps = max(self.peak_bps, current_bps)
 
         hours = int(elapsed // 3600)
         minutes = int((elapsed % 3600) // 60)
         seconds = int(elapsed % 60)
         uptime = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-        state = "[yellow]Paused[/]" if self.paused else "[green]Running[/]"
-        graph = Panel(
-            visual,
-            title="NetPulse",
-            subtitle=f"{state} | Max: {max_size} bytes | P pause/resume | R reset | C clear | Q quit",
-        )
-
-        stats_table = Table.grid(padding=(0, 3))
+        stats_table = Table.grid(expand=True, padding=(0, 2))
         stats_table.add_column(justify="left")
         stats_table.add_column(justify="left")
         stats_table.add_column(justify="left")
@@ -134,12 +154,42 @@ class Visualizer:
             f"[bold]Uptime:[/] {uptime}",
         )
         stats_table.add_row(
-            f"[cyan]TCP:[/] {self.tcp_count} ({self.format_bytes(self.tcp_bytes)})",
-            f"[blue]UDP:[/] {self.udp_count} ({self.format_bytes(self.udp_bytes)})",
-            f"[yellow]Other:[/] {self.other_count} ({self.format_bytes(self.other_bytes)})",
-            f"[bold]Peak:[/] {self.peak_pps:.1f} pkt/s | {self.peak_size} B",
+            f"[cyan]TCP:[/] {self._format_count_bytes('TCP')}",
+            f"[blue]UDP:[/] {self._format_count_bytes('UDP')}",
+            f"[magenta]ARP:[/] {self._format_count_bytes('ARP')}",
+            f"[yellow]Other:[/] {self._format_count_bytes('OTHER')}",
+        )
+        stats_table.add_row(
+            f"[bold]Peak:[/] {self.peak_pps} pkt/s | {self.format_bytes(self.peak_bps)}/s",
+            f"[bold]Largest:[/] {self.peak_size} B",
+            "",
+            "",
         )
 
-        stats_panel = Panel(stats_table, title="Statistics")
+        return stats_table
+
+    def generate_display(self):
+        width, height = self.get_terminal_size()
+        now = time.time()
+        self._prune_old_packets(now)
+
+        stats_height = 5
+        display_height = max(height - stats_height - 4, 1)
+
+        bins = self._build_traffic_bins(width, now)
+        visual, max_bin_value = self._render_graph(bins, display_height)
+
+        state = "[yellow]Paused[/]" if self.paused else "[green]Running[/]"
+        graph = Panel(
+            visual,
+            title="NetPulse",
+            subtitle=(
+                f"{state} | Window: {self.GRAPH_WINDOW_SECONDS}s | "
+                f"Peak bin: {self.format_bytes(max_bin_value)} | "
+                "P pause/resume | R reset | C clear | Q quit"
+            ),
+        )
+
+        stats_panel = Panel(self._build_stats_table(now), title="Statistics")
 
         return Group(graph, stats_panel)
