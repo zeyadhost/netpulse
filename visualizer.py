@@ -83,6 +83,15 @@ class Visualizer:
             f"({self.format_bytes(self.protocol_bytes[protocol])})"
         )
 
+    def _top_services_summary(self, limit=3):
+        if not self.service_counts:
+            return "None"
+
+        return " | ".join(
+            f"{service} {count}"
+            for service, count in self.service_counts.most_common(limit)
+        )
+
     def add_packet(self, packet):
         packet_time = packet.get("time", time.time())
         packet_entry = {
@@ -156,13 +165,14 @@ class Visualizer:
         stats_table.add_row(
             f"[cyan]TCP:[/] {self._format_count_bytes('TCP')}",
             f"[blue]UDP:[/] {self._format_count_bytes('UDP')}",
+            f"[green]ICMP:[/] {self._format_count_bytes('ICMP')}",
             f"[magenta]ARP:[/] {self._format_count_bytes('ARP')}",
-            f"[yellow]Other:[/] {self._format_count_bytes('OTHER')}",
         )
         stats_table.add_row(
-            f"[bold]Peak:[/] {self.peak_pps} pkt/s | {self.format_bytes(self.peak_bps)}/s",
+            f"[yellow]Other:[/] {self._format_count_bytes('OTHER')}",
+            f"[bold]Services:[/] {self._top_services_summary()}",
             f"[bold]Largest:[/] {self.peak_size} B",
-            "",
+            f"[bold]Peak:[/] {self.peak_pps} pkt/s | {self.format_bytes(self.peak_bps)}/s",
             "",
         )
 
