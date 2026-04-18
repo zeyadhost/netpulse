@@ -46,6 +46,14 @@ Controls while running:
 - Q: quit cleanly
 - Ctrl+C: force stop
 
+## Testing
+
+Run the focused unit tests with:
+
+```bash
+python -m unittest discover -s tests
+```
+
 ## TODO
 
 - [ ] Protocol identification (HTTP/Green, UDP/Blue, Encrypted/Red)
